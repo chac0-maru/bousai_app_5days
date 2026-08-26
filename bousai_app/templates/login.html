@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}管理者ログイン{% endblock %}
+{% block title %}ログイン{% endblock %}
 
 {% block content %}
-<h2>管理者ログイン</h2>
-<p>指示ボード・避難所登録の利用には管理者権限が必要です。</p>
+<h2>防災支援システムにログイン</h2>
+<p>管理者は111、住民は000を入力してください。</p>
 
 {% if error %}
   <p>{{ message }}</p>
@@ -17,7 +17,7 @@
   {% endif %}
 
   <p>
-    <label for="password">パスワード（「123」と入力してください）</label><br>
+    <label for="password">番号</label><br>
     <input type="password" id="password" name="password" required>
   </p>
 

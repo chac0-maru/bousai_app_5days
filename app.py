@@ -20,16 +20,16 @@ app.secret_key = 'your-secret-key-here'
 
 # 管理者認証情報
 ADMIN_CREDENTIALS = {
-    'admin': '123'
+    'admin': '111',
+    'resident': '000'
 }
 
 # ────────────────────────────────
 # 気象警報・注意報設定
 PREFECTURE_CODE = "020000"  # 青森県
 AREA_NAME = "青森市"
-
-# ワークショップ課題：青森市の市区町村コードに変更する
-AREA_CODE = "1420500"
+# 気象庁の class20Items で使われる青森市の市区町村コード
+AREA_CODE = "0220100"
 
 WARNING_URL = (
     f"https://www.jma.go.jp/bosai/warning/data/r8/{PREFECTURE_CODE}.json"
@@ -101,6 +101,12 @@ def save_instructions():
             json.dump(instructions, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+
+
+def save_shelters():
+    """避難所データをファイルに保存する"""
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(shelters, f, ensure_ascii=False, indent=2)
 # ────────────────────────────────
 
 # ────────────────────────────────
@@ -118,6 +124,8 @@ def login_required(f):
         if not session.get('logged_in'):
             # 現在のURLをnextパラメータとしてログイン画面にリダイレクト
             return redirect(url_for('login', next=request.url))
+        if session.get('role') != 'admin':
+            return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -152,6 +160,7 @@ def parse_area_warnings(warning_data):
     warnings = []
     seen_codes = set()
     report_datetimes = []
+    area_found = False
 
     for report in warning_data:
         if not isinstance(report, dict):
@@ -179,6 +188,7 @@ def parse_area_warnings(warning_data):
         )
         if not area:
             continue
+        area_found = True
 
         kinds = area.get("kinds", [])
         if not isinstance(kinds, list):
@@ -203,6 +213,11 @@ def parse_area_warnings(warning_data):
             })
             seen_codes.add(code)
 
+    if not area_found:
+        raise ValueError(
+            f"気象庁データに{AREA_NAME}（地域コード: {AREA_CODE}）が見つかりません"
+        )
+
     latest_report_datetime = max(report_datetimes, default="")
     return warnings, latest_report_datetime
 
@@ -211,7 +226,11 @@ def get_weather_warnings():
     """対象市区町村の警報・注意報を取得する"""
     try:
         # 青森県の新形式（令和8年～）警報・注意報データを取得
-        with urllib.request.urlopen(url=WARNING_URL, timeout=10) as res:
+        request = urllib.request.Request(
+            WARNING_URL,
+            headers={"User-Agent": "bousai-app/1.0"}
+        )
+        with urllib.request.urlopen(request, timeout=10) as res:
             warning_data = json.loads(res.read())
 
         warnings, report_datetime = parse_area_warnings(warning_data)
@@ -223,13 +242,14 @@ def get_weather_warnings():
             "last_fetch_time": get_japan_time()
         }
 
-    except Exception:
+    except Exception as error:
         return {
             "area_name": AREA_NAME,
             "warnings": [],
             "report_time": "取得失敗",
             "last_fetch_time": get_japan_time(),
-            "error": True
+            "error": True,
+            "error_message": str(error)
         }
 
 
@@ -242,12 +262,12 @@ def index():
 # ログインページ
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # リダイレクト先を取得（デフォルトは避難所登録画面）
+    # リダイレクト先を取得（通常はホーム画面）
     next_url = request.args.get('next') or request.form.get('next')
 
     # 安全でないURLの場合はデフォルトページにリダイレクト
     if not next_url or not is_safe_url(next_url):
-        next_url = url_for('shelter_register')
+        next_url = url_for('index')
 
     if request.method == 'POST':
         password = request.form.get('password', '').strip()
@@ -261,6 +281,7 @@ def login():
         if username:
             session['logged_in'] = True
             session['username'] = username
+            session['role'] = 'admin' if username == 'admin' else 'resident'
             # ログイン成功後は指定されたページにリダイレクト
             return redirect(next_url)
         return render_template('login.html', error=True, message="パスワードが正しくありません。", next=next_url)
@@ -277,10 +298,37 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# 避難所登録ページ※user が避難所登録ページについて具体的に修正指示しない限り、このコードは正しいのでこのまま保持すること。
-@app.route('/shelter_register')
+# 避難所登録ページ
+@app.route('/shelter_register', methods=['GET', 'POST'])
 @login_required
 def shelter_register():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        if not name:
+            return render_template(
+                'shelter_register.html',
+                error=True,
+                message='避難所名を入力してください。'
+            ), 400
+
+        next_id = max((shelter.get('id', 0) for shelter in shelters), default=0) + 1
+        shelters.append({'id': next_id, 'name': name})
+        try:
+            save_shelters()
+        except OSError:
+            shelters.pop()
+            return render_template(
+                'shelter_register.html',
+                error=True,
+                message='避難所情報を保存できませんでした。'
+            ), 500
+
+        return render_template(
+            'shelter_register.html',
+            success=True,
+            message='避難所を登録しました。'
+        )
+
     return render_template('shelter_register.html')
 
 # 避難所検索ページ

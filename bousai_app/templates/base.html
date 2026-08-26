@@ -4,27 +4,37 @@
   <meta charset="utf-8">
   <title>{% block title %}防災アプリ{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-  <!-- ヘッダー -->
-  <h1>防災アプリ</h1>
-
-  <!-- ナビゲーション -->
-  <nav>
-    <a href="/">ホーム</a> |
-    <a href="/shelter_search">避難所検索</a> |
-    <a href="/shelter_register">避難所登録</a> |
-    <a href="/board">指示・発信ボード</a>
-    ｜
-    {% if session.logged_in %}
-      ログイン中{% if session.username %}（{{ session.username }}）{% endif %}
-      <a href="/logout">ログアウト</a>
-    {% else %}
-      未ログイン
-      <a href="/login">ログイン</a>
-    {% endif %}
-  </nav>
-  <hr>
+<body class="{{ request.endpoint or '' }}">
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="{{ url_for('index') }}">防災アプリ</a>
+      <button class="menu-toggle" type="button" aria-label="メニューを開く" aria-expanded="false">☰</button>
+      <nav class="site-nav" aria-label="メインメニュー">
+        <a href="{{ url_for('index') }}">ホーム</a>
+        <a href="{{ url_for('shelter_search') }}">避難所検索</a>
+        {% if session.get('role') == 'admin' %}
+          <a href="{{ url_for('shelter_register') }}">避難所登録</a>
+        {% endif %}
+        <a href="{{ url_for('board') }}">指示・発信ボード</a>
+        <div class="auth-status">
+          {% if session.logged_in %}
+            ログイン中{% if session.username %}（{{ session.username }}）{% endif %} ・ <a href="{{ url_for('logout') }}">ログアウト</a>
+          {% else %}
+            未ログイン ・ <a href="{{ url_for('login') }}">ログイン</a>
+          {% endif %}
+        </div>
+      </nav>
+    </div>
+  </header>
+  <script>
+    document.querySelector('.menu-toggle').addEventListener('click', function () {
+      const menu = document.querySelector('.site-nav');
+      const open = menu.classList.toggle('is-open');
+      this.setAttribute('aria-expanded', open);
+    });
+  </script>
 
   <main>
     <!-- ここに子テンプレートの content が入る -->
