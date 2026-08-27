@@ -2,87 +2,50 @@
 
 {% block content %}
 <div class="dashboard-shell" id="dashboard">
-    <header class="dashboard-header">
-        <a class="dashboard-brand" href="{{ url_for('index') }}">防災支援システム</a>
-                <div class="dashboard-user" aria-label="ログインユーザー">
-            <span class="avatar" aria-hidden="true">●</span>
-                        {% if session.get('logged_in') %}
-                            <span><strong>{{ '大阪 太郎' if session.get('role') == 'admin' else '住民の方' }}</strong><small>{{ '管理者' if session.get('role') == 'admin' else '一般ユーザー' }}</small><a class="dashboard-logout" href="{{ url_for('logout') }}">ログアウト</a></span>
-                        {% else %}
-                            <span><strong>未ログイン</strong><a class="login-link" href="{{ url_for('login', next=request.path) }}">ログイン</a></span>
-                        {% endif %}
-        </div>
-    </header>
-
-    <main class="dashboard-main">
-        <section class="normal-view" aria-label="通常モード">
-            <div class="dashboard-columns">
-                <section class="dashboard-card notice-card">
-                    <div class="card-heading"><div><span class="eyebrow">LOCAL SAFETY</span><h1>地域の防災情報</h1></div><span class="status-dot">平常</span></div>
-                    <div class="segmented-control" role="tablist" aria-label="防災情報の種類">
-                        <button class="segment active" type="button" role="tab" aria-selected="true" data-tab-group="notice" data-tab="notice">重要なお知らせ</button>
-                        <button class="segment" type="button" role="tab" aria-selected="false" data-tab-group="notice" data-tab="event">イベント</button>
-                    </div>
-                    <div class="notice-list" data-panel-group="notice" data-panel="notice">
-                        {% for notice in resident_notices %}
-                        <article class="notice-item"><time>{{ notice.updated_at or notice.created_at or '本日' }}</time><span class="tag {{ 'tag-alert' if notice.status != '解除' else '' }}">{{ '重要' if notice.status != '解除' else 'お知らせ' }}</span><h2>{{ notice.content }}</h2>{% if notice.shelter %}<p>対象：{{ notice.shelter }}</p>{% endif %}</article>
-                        {% else %}
-                        <article class="notice-item"><time>本日</time><span class="tag">お知らせ</span><h2>現在、地域からのお知らせはありません</h2></article>
-                        {% endfor %}
-                    </div>
-                    <div class="notice-list is-hidden" data-panel-group="notice" data-panel="event"><article class="notice-item"><time>2026年08月30日</time><span class="tag">地域</span><h2>地域防災訓練のお知らせ</h2><p>近くの避難所で訓練を行います</p></article></div>
-                </section>
-
-                <section class="dashboard-card map-card">
-                    <div class="card-heading"><div><span class="eyebrow">MAP &amp; TRAFFIC</span><h1>マップ・交通情報</h1></div></div>
-                    <div class="segmented-control" role="tablist" aria-label="地図情報の種類">
-                        <button class="segment active" type="button" role="tab" aria-selected="true" data-tab-group="map" data-tab="hazard">ハザードマップ</button>
-                        <button class="segment" type="button" role="tab" aria-selected="false" data-tab-group="map" data-tab="road">通行止め・道路状況</button>
-                    </div>
-                    <div class="map-preview" data-panel-group="map" data-panel="hazard"><iframe title="青森市の地図" src="https://www.openstreetmap.org/export/embed.html?bbox=140.65%2C40.75%2C140.85%2C40.86&amp;layer=mapnik&amp;marker=40.8244%2C140.74" loading="lazy"></iframe><span class="map-label">青森市 ハザードマップ</span></div>
-                    <div class="map-preview is-hidden" data-panel-group="map" data-panel="road"><span class="road-symbol">!</span><strong>通行止め情報（プロトタイプ）</strong><small>国道4号 青森市中央交差点付近　片側通行</small><small>更新：2026年08月26日 09:00</small></div>
-                    <div class="map-actions"><button class="primary-action" type="button" data-action="現在地を登録・更新">現在地を登録・更新</button><button class="primary-action" type="button" data-action="現在地周辺のハザードマップを拡大">周辺の地図を拡大</button></div>
-                </section>
-            </div>
-        </section>
-
-        <section class="emergency-view" aria-label="緊急モード" hidden>
-            <div class="emergency-banner"><span class="alert-mark">!</span><div><span>緊急地震速報</span><strong>青森市で災害発生！直ちに安全を確保してください</strong></div></div>
-            <div class="emergency-columns">
-                <section class="emergency-actions"><span class="eyebrow">EMERGENCY ACTION</span><h1>まず、安全な場所へ</h1><button class="evacuate-button" type="button" data-action="避難所をすぐ探す">避難所を<br><strong>すぐ探す</strong></button><button class="route-button" type="button" data-action="避難最短経路を表示">避難最短経路を表示</button></section>
-                <section class="emergency-map"><div class="route-map"><span class="route-badge">避難最短経路</span><span class="route-line"></span><span class="map-pin">⌖</span><strong>避難所まで 1.2 km</strong><small>徒歩 約15分　安全な経路を表示中</small></div><button class="road-button" type="button" data-action="周辺の通行止め情報">周辺の通行止め情報</button></section>
-            </div>
-        </section>
-    </main>
-
-    <nav class="bottom-nav" aria-label="メインナビゲーション"><a class="bottom-nav-item current" href="{{ url_for('index') }}"><span>⌂</span>ホーム</a><a class="bottom-nav-item" href="{{ url_for('shelter_search') }}"><span>⌕</span>避難所検索</a><a class="bottom-nav-item" href="{{ url_for('search_results') }}"><span>▤</span>検索結果</a>{% if session.get('role') == 'admin' %}<a class="bottom-nav-item" href="{{ url_for('shelter_register') }}"><span>＋</span>避難所登録</a>{% else %}<button class="bottom-nav-item help-nav" id="helpButton" type="button"><span>?</span>使い方</button>{% endif %}<button class="bottom-nav-item mode-toggle" id="modeToggle" type="button"><span>!</span><b>緊急モードへ</b></button></nav>
-    <dialog class="help-dialog" id="helpDialog"><button class="dialog-close" id="helpClose" type="button" aria-label="閉じる">×</button><span class="eyebrow">HOW TO USE</span><h2>使い方</h2><ol><li><strong>避難所検索</strong><span>近くの避難所を探します</span></li><li><strong>地図</strong><span>青森市の危険な場所を確認します</span></li><li><strong>緊急モード</strong><span>災害時の避難操作を大きく表示します</span></li></ol></dialog>
+  <header class="dashboard-header">
+    <a class="dashboard-brand" href="{{ url_for('index') }}" data-i18n="title">防災支援システム</a>
+    <div class="dashboard-user" aria-label="ログインユーザー">
+      <button class="language-button" id="languageToggle" type="button" aria-label="言語を切り替える">🌐 <span>EN / JP</span></button>
+      <span class="avatar" aria-hidden="true">●</span>
+      {% if session.get('logged_in') %}<span><strong data-i18n="user">{{ '大阪 太郎' if session.get('role') == 'admin' else '住民の方' }}</strong><small data-i18n="role">{{ '管理者' if session.get('role') == 'admin' else '一般ユーザー' }}</small><a class="dashboard-logout" href="{{ url_for('logout') }}" data-i18n="logout">ログアウト</a></span>
+      {% else %}<span><strong data-i18n="not_logged_in">未ログイン</strong><a class="login-link" href="{{ url_for('login', next=request.path) }}" data-i18n="login">ログイン</a></span>{% endif %}
+    </div>
+  </header>
+  <main class="dashboard-main">
+    <section class="normal-view" aria-label="通常モード"><div class="dashboard-columns">
+      <section class="dashboard-card notice-card"><div class="card-heading"><div><h1 data-i18n="notice_title">地域の防災情報</h1></div><span class="status-dot" data-i18n="status">平常</span></div>
+        <div class="segmented-control" role="tablist"><button class="segment active" type="button" role="tab" aria-selected="true" data-tab-group="notice" data-tab="notice" data-i18n="notices">重要なお知らせ</button><button class="segment" type="button" role="tab" aria-selected="false" data-tab-group="notice" data-tab="event" data-i18n="events">イベント</button></div>
+        <div class="notice-list" data-panel-group="notice" data-panel="notice">{% for notice in resident_notices %}<article class="notice-item"><time>{{ notice.updated_at or notice.created_at or '本日' }}</time><span class="tag {{ 'tag-alert' if notice.status != '解除' else '' }}">{{ '重要' if notice.status != '解除' else 'お知らせ' }}</span><h2>{{ notice.content }}</h2>{% if notice.shelter %}<p>対象：{{ notice.shelter }}</p>{% endif %}</article>{% else %}<article class="notice-item"><time data-i18n="today">本日</time><span class="tag" data-i18n="notice">お知らせ</span><h2 data-i18n="no_notice">現在、地域からのお知らせはありません</h2></article>{% endfor %}</div>
+        <div class="notice-list is-hidden" data-panel-group="notice" data-panel="event"><article class="notice-item"><time>2026年08月30日</time><span class="tag" data-i18n="area">地域</span><h2 data-i18n="event_notice">地域防災訓練のお知らせ</h2><p data-i18n="event_detail">近くの避難所で訓練を行います</p></article></div>
+      </section>
+      <section class="dashboard-card map-card"><div class="card-heading"><div><h1 data-i18n="map_title">マップ・交通情報</h1></div></div>
+        <div class="segmented-control" role="tablist"><button class="segment active" type="button" role="tab" aria-selected="true" data-tab-group="map" data-tab="hazard" data-i18n="hazard">ハザードマップ</button><button class="segment" type="button" role="tab" aria-selected="false" data-tab-group="map" data-tab="road" data-i18n="road">通行止め・道路状況</button></div>
+        <div class="map-preview" data-panel-group="map" data-panel="hazard"><div id="hazardMap" class="leaflet-map" aria-label="青森市のハザードマップ"></div><span class="map-label" data-i18n="hazard_map">青森市 ハザードマップ</span></div>
+        <div class="map-preview is-hidden" data-panel-group="map" data-panel="road"><div id="roadMap" class="leaflet-map" aria-label="通行止め・道路状況"></div><span class="map-data-status" data-i18n="road_data_notice">試験データ：実際の通行規制とは異なります</span><p class="map-detail" id="mapDetail" data-i18n="marker_instruction">マーカーを選択すると詳細を表示します</p></div>
+        <div class="map-actions"><button class="primary-action" type="button" data-action="register_location" data-i18n="register_location">現在地を登録・更新</button><button class="primary-action" type="button" data-action="zoom_map" data-i18n="zoom_map">周辺の地図を拡大</button></div>
+      </section>
+    </div></section>
+    <section class="emergency-view" aria-label="緊急モード" hidden><div class="emergency-banner"><span class="alert-mark">!</span><div><span data-i18n="earthquake_alert">緊急地震速報</span><strong data-i18n="emergency_alert">青森市で災害発生！直ちに安全を確保してください</strong></div></div><div class="emergency-columns"><section class="emergency-actions"><h1 data-i18n="safe_place">まず、安全な場所へ</h1><p class="emergency-guidance" data-i18n="choose_shelter">登録済みの避難所を確認し、避難所検索からナビを開始してください</p><a class="evacuate-button" href="{{ url_for('shelter_search') }}" data-i18n="open_shelter_search">避難所検索を開く</a></section><section class="emergency-map"><div class="shelter-map"><div id="emergencyShelterMap" class="leaflet-map" aria-label="登録済み避難所の地図"></div><span class="map-label" data-i18n="registered_shelters">登録済み避難所</span></div><button class="road-button" type="button" data-action="nearby_roads" data-i18n="nearby_roads">周辺の通行止め情報</button></section></div></section>
+  </main>
+  <nav class="bottom-nav" aria-label="メインナビゲーション"><a class="bottom-nav-item current" href="{{ url_for('index') }}"><span>⌂</span><b data-i18n="home">ホーム</b></a><a class="bottom-nav-item" href="{{ url_for('shelter_search') }}"><span>⌕</span><b data-i18n="shelter_search">避難所検索</b></a><a class="bottom-nav-item" href="{{ url_for('shelter_search') }}"><span>▤</span><b data-i18n="results">検索結果</b></a>{% if session.get('role') == 'admin' %}<a class="bottom-nav-item" href="{{ url_for('shelter_register') }}"><span>＋</span><b data-i18n="register">避難所登録</b></a>{% else %}<button class="bottom-nav-item help-nav" id="helpButton" type="button"><span>?</span><b data-i18n="help">使い方</b></button>{% endif %}<button class="bottom-nav-item mode-toggle" id="modeToggle" type="button"><span>!</span><b data-i18n="emergency_mode">緊急モードへ</b></button></nav>
 </div>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const dashboard = document.querySelector('#dashboard');
-    const normalView = dashboard.querySelector('.normal-view');
-    const emergencyView = dashboard.querySelector('.emergency-view');
-    const modeToggle = dashboard.querySelector('#modeToggle');
-    modeToggle.addEventListener('click', () => {
-        const emergency = !emergencyView.hidden;
-        emergencyView.hidden = emergency;
-        normalView.hidden = !emergency;
-        modeToggle.classList.toggle('is-emergency', !emergency);
-        modeToggle.querySelector('b').textContent = emergency ? '緊急モードへ' : '通常モードへ';
-    });
-    dashboard.querySelectorAll('[data-tab-group]').forEach(button => button.addEventListener('click', () => {
-        const group = button.dataset.tabGroup;
-        dashboard.querySelectorAll(`[data-tab-group="${group}"]`).forEach(item => { item.classList.toggle('active', item === button); item.setAttribute('aria-selected', item === button); });
-        dashboard.querySelectorAll(`[data-panel-group="${group}"]`).forEach(panel => panel.classList.toggle('is-hidden', panel.dataset.panel !== button.dataset.tab));
-    }));
-    dashboard.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => { console.log(`操作: ${button.dataset.action}`); alert(`${button.dataset.action} を選択しました`); }));
-        const helpDialog = dashboard.querySelector('#helpDialog');
-        const helpButton = dashboard.querySelector('#helpButton');
-        if (helpButton) {
-            helpButton.addEventListener('click', () => helpDialog.showModal());
-            dashboard.querySelector('#helpClose').addEventListener('click', () => helpDialog.close());
-        }
+  const dashboard = document.querySelector('#dashboard');
+  const normalView = dashboard.querySelector('.normal-view');
+  const emergencyView = dashboard.querySelector('.emergency-view');
+  const text = {ja:{title:'防災支援システム',user:'大阪 太郎',role:'管理者',logout:'ログアウト',not_logged_in:'未ログイン',login:'ログイン',notice_title:'地域の防災情報',status:'平常',notices:'重要なお知らせ',events:'イベント',notice:'お知らせ',no_notice:'現在、地域からのお知らせはありません',area:'地域',event_notice:'地域防災訓練のお知らせ',event_detail:'近くの避難所で訓練を行います',map_title:'マップ・交通情報',hazard:'ハザードマップ',road:'通行止め・道路状況',hazard_map:'青森市 ハザードマップ',marker_instruction:'マーカーを選択すると詳細を表示します',register_location:'現在地を登録・更新',zoom_map:'周辺の地図を拡大',earthquake_alert:'緊急地震速報',emergency_alert:'青森市で災害発生！直ちに安全を確保してください',safe_place:'まず、安全な場所へ',start_navigation:'一番近い避難所へナビ開始',route_map:'避難最短経路',distance:'避難所まで 1.2 km',walking:'徒歩 約15分　安全な経路を表示中',nearby_roads:'周辺の通行止め情報',home:'ホーム',shelter_search:'避難所検索',results:'検索結果',register:'避難所登録',help:'使い方',map:'地図',emergency_mode:'緊急モードへ',normal_mode:'通常モードへ',emergency_mode_short:'緊急モード',help_1:'近くの避難所を探します',help_2:'青森市の危険な場所を確認します',help_3:'災害時の避難操作を大きく表示します',today:'本日',closed:'✖ 通行止め',reason1:'中央交差点付近：土砂崩れのため通行不可',reason2:'本町交差点付近：道路冠水のため通行不可',reason3:'港町交差点付近：落石のため通行不可'},en:{title:'Disaster Support System',user:'Taro Osaka',role:'Administrator',logout:'Log out',not_logged_in:'Not logged in',login:'Log in',notice_title:'Local disaster information',status:'Clear',notices:'Important notices',events:'Events',notice:'Notice',no_notice:'There are no local notices at this time',area:'Area',event_notice:'Community disaster drill',event_detail:'A drill will be held at a nearby shelter',map_title:'Maps and traffic',hazard:'Hazard map',road:'Road closures',hazard_map:'Aomori hazard map',marker_instruction:'Select a marker to see details',register_location:'Save or update location',zoom_map:'Zoom to my area',earthquake_alert:'Earthquake alert',emergency_alert:'Disaster reported in Aomori. Move to safety immediately.',safe_place:'Move to safety first',start_navigation:'Start navigation to the nearest shelter',route_map:'Evacuation route',distance:'1.2 km to shelter',walking:'About 15 min on foot　Showing a safe route',nearby_roads:'Nearby road closures',home:'Home',shelter_search:'Shelters',results:'Results',register:'Register shelter',help:'Help',map:'Map',emergency_mode:'Emergency mode',normal_mode:'Normal mode',emergency_mode_short:'Emergency mode',help_1:'Find nearby shelters',help_2:'Check dangerous areas in Aomori',help_3:'Show large evacuation controls during a disaster',today:'Today',closed:'✖ Road closed',reason1:'Chuo intersection: impassable due to landslide',reason2:'Honcho intersection: impassable due to flooding',reason3:'Minatomachi intersection: impassable due to falling rocks'}};
+  Object.assign(text.ja,{choose_shelter:'登録済みの避難所を確認し、避難所検索からナビを開始してください',open_shelter_search:'避難所検索を開く',registered_shelters:'登録済み避難所',registered_shelter:'避難所',road_data_notice:'試験データ：実際の通行規制とは異なります'}); Object.assign(text.en,{choose_shelter:'Check registered shelters, then start navigation from shelter search',open_shelter_search:'Open shelter search',registered_shelters:'Registered shelters',registered_shelter:'Shelter',road_data_notice:'Test data: not real-time road restrictions'});
+  let lang = 'ja'; const markers = []; const translate = () => { dashboard.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = text[lang][el.dataset.i18n]; }); markers.forEach(marker => marker.setTooltipContent(text[lang].closed)); };
+  const maps = {}; const setup = id => L.map(id).setView([40.8244,140.74],14); maps.hazard=setup('hazardMap'); maps.road=setup('roadMap'); maps.emergency=setup('emergencyShelterMap'); Object.values(maps).forEach(map => L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors'}).addTo(map));
+  const shelters = {{ shelters|tojson }}; shelters.filter(shelter => Number.isFinite(Number(shelter.lat ?? shelter.latitude)) && Number.isFinite(Number(shelter.lng ?? shelter.longitude))).forEach(shelter => L.marker([shelter.lat ?? shelter.latitude,shelter.lng ?? shelter.longitude]).bindTooltip(shelter.name || text.ja.registered_shelter,{permanent:true,direction:'top'}).addTo(maps.emergency));
+  [[40.8280,140.7350,'reason1'],[40.8205,140.7450,'reason2'],[40.8180,140.7300,'reason3']].forEach(([lat,lon,reason]) => { const marker=L.marker([lat,lon],{icon:L.divIcon({className:'closure-marker',html:'✖',iconSize:[42,42],iconAnchor:[21,21]})}).bindTooltip(text.ja.closed,{permanent:true,direction:'top'}).on('click',()=>document.querySelector('#mapDetail').textContent=text[lang][reason]).addTo(maps.road); markers.push(marker); });
+  dashboard.querySelector('#languageToggle').addEventListener('click',()=>{lang=lang==='ja'?'en':'ja';translate();});
+  dashboard.querySelector('#modeToggle').addEventListener('click',()=>{const emergency=!emergencyView.hidden;emergencyView.hidden=emergency;normalView.hidden=!emergency;dashboard.querySelector('#modeToggle').classList.toggle('is-emergency',!emergency);dashboard.querySelector('#modeToggle b').textContent=text[lang][emergency?'emergency_mode':'normal_mode'];if(!emergency)maps.emergency.invalidateSize();});
+  dashboard.querySelectorAll('[data-tab-group]').forEach(button=>button.addEventListener('click',()=>{const group=button.dataset.tabGroup;dashboard.querySelectorAll(`[data-tab-group="${group}"]`).forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-selected',item===button);});dashboard.querySelectorAll(`[data-panel-group="${group}"]`).forEach(panel=>panel.classList.toggle('is-hidden',panel.dataset.panel!==button.dataset.tab));if(group==='map')maps[button.dataset.tab].invalidateSize();}));
+  dashboard.querySelectorAll('[data-action]').forEach(button=>button.addEventListener('click',()=>alert(text[lang][button.dataset.action]+(lang==='ja'?'を選択しました':' selected'))));
+  const dialog=dashboard.querySelector('#helpDialog'); const help=dashboard.querySelector('#helpButton'); if(help)help.addEventListener('click',()=>dialog.showModal());
 });
 </script>
 {% endblock %}

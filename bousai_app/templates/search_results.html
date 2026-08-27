@@ -1,20 +1,5 @@
 {% extends "base.html" %}
-
+{% block title %}検索結果 - 防災アプリ{% endblock %}
 {% block content %}
-<h2>検索結果</h2>
-
-{% if results %}
-  <ul>
-    {% for shelter in results %}
-    <li>{{ shelter.name }}</li>
-    {% endfor %}
-  </ul>
-{% else %}
-  <p>該当する避難所が見つかりませんでした</p>
-{% endif %}
-
-<p>
-  <a href="/shelter_search">検索画面に戻る</a> |
-  <a href="/">トップページへ戻る</a>
-</p>
+<div class="shelter-page"><header class="page-header"><a href="{{ url_for('index') }}" class="back-link">← ホーム</a><h1>検索結果</h1><p>登録されている避難所の一覧です。</p></header><section class="shelter-results"><div class="shelter-grid">{% for shelter in results %}<article class="shelter-result-card"><h3>{{ shelter.name }}</h3><p>{{ shelter.address|default('住所未登録', true) }}</p><div class="card-meta"><span>{{ shelter.category|default('避難所', true) }}</span><strong>{{ shelter.congestion|default('状況未登録', true) }}</strong></div><div class="facility-tags">{% for amenity in shelter.amenities|default([], true) %}<span>{{ amenity }}</span>{% endfor %}{% if not shelter.amenities|default([], true) %}<span>対応設備未登録</span>{% endif %}</div></article>{% else %}<p class="empty-results">該当する避難所が見つかりません</p>{% endfor %}</div></section></div>
 {% endblock %}

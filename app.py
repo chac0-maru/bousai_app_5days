@@ -4,7 +4,9 @@ from functools import wraps
 import json
 import os
 import urllib.request
+import uuid
 from datetime import datetime, timedelta, timezone
+from werkzeug.utils import secure_filename
 
 # app.py はプロジェクト直下に置く。
 # 実体（templates / static / data）は bousai_app/ 配下にあるので、そこを参照する。
@@ -17,6 +19,7 @@ app = Flask(
     static_folder=os.path.join(APP_DIR, 'static'),
 )
 app.secret_key = 'your-secret-key-here'
+app.config['MAX_CONTENT_LENGTH'] = 12 * 1024 * 1024
 
 # 管理者認証情報
 ADMIN_CREDENTIALS = {
@@ -82,6 +85,10 @@ WARNING_CODES = {
 # サンプルデータの読み込み
 DATA_FILE = os.path.join(APP_DIR, 'data', 'shelters.json')
 INSTRUCTIONS_FILE = os.path.join(APP_DIR, 'data', 'instructions.json')
+UPLOAD_DIR = os.path.join(APP_DIR, 'static', 'uploads')
+ALLOWED_PHOTO_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+ALLOWED_AMENITIES = {'ペット連れ込み可能', 'ベビー用品あり'}
+ALLOWED_DISASTER_TYPES = {'津波', '河川氾濫', '道路冠水', '土砂崩れ', '積雪', '獣害'}
 
 def load_json(path, default):
     """JSONファイルを読み込む（存在しない・壊れている場合は default を返す）"""
@@ -257,7 +264,7 @@ def get_weather_warnings():
 @app.route('/')
 def index():
     resident_notices = [i for i in instructions if i.get('target') == '住民']
-    return render_template('index.html', resident_notices=resident_notices)
+    return render_template('index.html', resident_notices=resident_notices, shelters=shelters)
 
 # ログインページ
 @app.route('/login', methods=['GET', 'POST'])
@@ -304,37 +311,113 @@ def logout():
 def shelter_register():
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
-        if not name:
+        postal_code = request.form.get('postal_code', '').strip()
+        address = request.form.get('address', '').strip()
+        capacity = request.form.get('capacity', '').strip()
+        comment = request.form.get('comment', '').strip()
+        amenities = [value for value in request.form.getlist('amenities') if value in ALLOWED_AMENITIES]
+        disaster_types = [value for value in request.form.getlist('disaster_types') if value in ALLOWED_DISASTER_TYPES]
+        latitude = request.form.get('latitude', '').strip()
+        longitude = request.form.get('longitude', '').strip()
+        photo = request.files.get('photo')
+        form_data = {
+            'name': name, 'postal_code': postal_code, 'address': address,
+            'capacity': capacity, 'comment': comment, 'amenities': amenities,
+            'disaster_types': disaster_types, 'latitude': latitude,
+            'longitude': longitude
+        }
+        normalized_postal_code = postal_code.replace('-', '')
+        if not name or not postal_code or not address or not capacity:
             return render_template(
                 'shelter_register.html',
-                error=True,
-                message='避難所名を入力してください。'
+                error=True, message='避難所名、郵便番号、住所、収容人数は必須です。',
+                form_data=form_data
             ), 400
+        if any(shelter.get('name', '').strip() == name for shelter in shelters):
+            return render_template(
+                'shelter_register.html', error=True,
+                message='同名の避難所は登録できません。', form_data=form_data
+            ), 400
+        if len(normalized_postal_code) != 7 or not normalized_postal_code.isdigit():
+            return render_template(
+                'shelter_register.html', error=True,
+                message='郵便番号は7桁で入力してください。', form_data=form_data
+            ), 400
+        try:
+            capacity_value = int(capacity)
+        except ValueError:
+            return render_template(
+                'shelter_register.html', error=True,
+                message='収容人数は1以上の整数で入力してください。', form_data=form_data
+            ), 400
+        if capacity_value < 1:
+            return render_template(
+                'shelter_register.html', error=True,
+                message='収容人数は1以上の整数で入力してください。',
+                form_data=form_data
+            ), 400
+        coordinates = {}
+        if latitude or longitude:
+            try:
+                latitude_value = float(latitude)
+                longitude_value = float(longitude)
+                if not -90 <= latitude_value <= 90 or not -180 <= longitude_value <= 180:
+                    raise ValueError
+                coordinates = {'latitude': latitude_value, 'longitude': longitude_value, 'lat': latitude_value, 'lng': longitude_value}
+            except ValueError:
+                return render_template('shelter_register.html', error=True, message='緯度と経度は両方とも正しい範囲の数値で入力してください。', form_data=form_data), 400
+        photo_path = None
+        if photo and photo.filename:
+            safe_name = secure_filename(photo.filename)
+            extension = safe_name.rsplit('.', 1)[-1].lower() if '.' in safe_name else ''
+            if extension not in ALLOWED_PHOTO_EXTENSIONS:
+                return render_template('shelter_register.html', error=True, message='写真形式はJPG、JPEG、PNG、GIF、WEBPのみ対応しています。', form_data=form_data), 400
+            photo.stream.seek(0, os.SEEK_END)
+            photo_size = photo.stream.tell()
+            photo.stream.seek(0)
+            if photo_size > 10 * 1024 * 1024:
+                return render_template('shelter_register.html', error=True, message='写真は10MB以内にしてください。', form_data=form_data), 400
 
         next_id = max((shelter.get('id', 0) for shelter in shelters), default=0) + 1
-        shelters.append({'id': next_id, 'name': name})
+        shelters.append({
+            'id': next_id, 'name': name, 'postal_code': normalized_postal_code,
+            'address': address, 'capacity': capacity_value, 'comment': comment,
+            'amenities': amenities, 'disaster_types': disaster_types,
+            **coordinates
+        })
         try:
+            if photo and photo.filename:
+                os.makedirs(UPLOAD_DIR, exist_ok=True)
+                stored_name = f'{uuid.uuid4().hex}.{extension}'
+                photo.save(os.path.join(UPLOAD_DIR, stored_name))
+                photo_path = f'uploads/{stored_name}'
+                shelters[-1]['photo'] = photo_path
             save_shelters()
         except OSError:
+            if photo_path:
+                try:
+                    os.remove(os.path.join(APP_DIR, 'static', photo_path))
+                except OSError:
+                    pass
             shelters.pop()
             return render_template(
                 'shelter_register.html',
                 error=True,
-                message='避難所情報を保存できませんでした。'
+                message='避難所情報を保存できませんでした。', form_data=form_data
             ), 500
 
         return render_template(
             'shelter_register.html',
             success=True,
-            message='避難所を登録しました。'
+            message='避難所を登録しました。', form_data={}
         )
 
-    return render_template('shelter_register.html')
+    return render_template('shelter_register.html', form_data={})
 
 # 避難所検索ページ
 @app.route('/shelter_search')
 def shelter_search():
-    return render_template('shelter_search.html')
+    return render_template('shelter_search.html', shelters=shelters)
 
 # 全施設一覧ページ
 @app.route('/all_shelters')
